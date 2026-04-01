@@ -19,6 +19,7 @@ jobs:
 
       - name: Build
         run: |
+          set -o pipefail
           xcodebuild build \
             -project WidgetCreator.xcodeproj \
             -scheme WidgetCreator \
@@ -30,24 +31,26 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             DEVELOPMENT_TEAM="" \
             ARCHS="arm64" \
-            ONLY_ACTIVE_ARCH=NO
+            ONLY_ACTIVE_ARCH=NO \
+            2>&1 | tee build_log.txt
 
       - name: Create IPA
+        if: success()
         run: |
-          echo "Searching..."
-          find DerivedData -name "*.app" -type d 2>/dev/null
           APP=$(find DerivedData -name "WidgetCreator.app" -type d 2>/dev/null | head -1)
-          if [ -z "$APP" ]; then
-            echo "NOT FOUND"
-            exit 1
-          fi
-          echo "Found: $APP"
-          mkdir Payload
-          cp -r "$APP" Payload/
+          if [ -z "$APP" ]; then echo "NOT FOUND"; exit 1; fi
+          mkdir Payload && cp -r "$APP" Payload/
           zip -r WidgetCreator.ipa Payload
-          ls -lh WidgetCreator.ipa
+
+      - name: Save build log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: build_log.txt
 
       - uses: actions/upload-artifact@v4
+        if: success()
         with:
           name: ipa
           path: WidgetCreator.ipa
