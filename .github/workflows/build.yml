@@ -1,0 +1,53 @@
+name: Build IPA
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate project
+        run: xcodegen generate
+
+      - name: Build
+        run: |
+          xcodebuild build \
+            -project WidgetCreator.xcodeproj \
+            -scheme WidgetCreator \
+            -sdk iphoneos \
+            -configuration Release \
+            -derivedDataPath DerivedData \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            DEVELOPMENT_TEAM="" \
+            ARCHS="arm64" \
+            ONLY_ACTIVE_ARCH=NO
+
+      - name: Create IPA
+        run: |
+          echo "Searching..."
+          find DerivedData -name "*.app" -type d 2>/dev/null
+          APP=$(find DerivedData -name "WidgetCreator.app" -type d 2>/dev/null | head -1)
+          if [ -z "$APP" ]; then
+            echo "NOT FOUND"
+            exit 1
+          fi
+          echo "Found: $APP"
+          mkdir Payload
+          cp -r "$APP" Payload/
+          zip -r WidgetCreator.ipa Payload
+          ls -lh WidgetCreator.ipa
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ipa
+          path: WidgetCreator.ipa
